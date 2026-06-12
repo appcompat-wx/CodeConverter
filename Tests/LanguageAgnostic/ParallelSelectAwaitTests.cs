@@ -19,7 +19,7 @@ public class ParallelSelectAwaitTests
             return i > 3 ? i : throw new ObjectDisposedException("Original");
         }, MaxDop);
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await asyncEnumerable.ToArrayAsync());
+        Assert.Throws<ObjectDisposedException>(() => asyncEnumerable.ToArrayAsync().GetAwaiter().GetResult());
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class ParallelSelectAwaitTests
             , MaxDop
         );
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await asyncEnumerable.ToArrayAsync());
+        Assert.Throws<ObjectDisposedException>(() => asyncEnumerable.ToArrayAsync().GetAwaiter().GetResult());
     }
 
     [Fact]

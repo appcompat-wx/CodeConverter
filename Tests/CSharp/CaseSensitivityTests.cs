@@ -33,9 +33,9 @@ public partial class VBIsCaseInsensitive : System.Web.UI.Page
 
 public partial class VBIsCaseInsensitive
 {
-    private Global.System.Web.UI.WebControls.Button _btnOk;
+    private System.Web.UI.WebControls.Button _btnOk;
 
-    protected virtual Global.System.Web.UI.WebControls.Button btnOk
+    protected virtual System.Web.UI.WebControls.Button btnOk
     {
         [MethodImpl(MethodImplOptions.Synchronized)]
         get
@@ -58,111 +58,7 @@ public partial class VBIsCaseInsensitive
             }
         }
     }
-}
-3 source compilation errors:
-BC30002: Type 'System.Web.UI.Page' is not defined.
-BC30002: Type 'Global.System.Web.UI.WebControls.Button' is not defined.
-BC30590: Event 'Click' cannot be found.
-2 target compilation errors:
-CS0234: The type or namespace name 'UI' does not exist in the namespace 'System.Web' (are you missing an assembly reference?)
-CS0246: The type or namespace name 'Global.System.Web.UI.WebControls.Button' could not be found (are you missing a using directive or an assembly reference?)");
-    }
-
-    [Fact]
-    public async Task Issue1154_NamespaceAndClassSameNameDifferentCaseAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"
-Imports System
-
-Namespace Issue1154
-    <CaseSensitive1.Casesensitive1.TestDummy>
-    Public Class UpperLowerCase
-    End Class
-
-    <Casesensitive2.CaseSensitive2.TestDummy>
-    Public Class LowerUpperCase
-    End Class
-
-    <CaseSensitive3.CaseSensitive3.TestDummy>
-    Public Class SameCase
-    End Class
-End Namespace
-
-Namespace CaseSensitive1
-    Public Class Casesensitive1
-        Public Class TestDummyAttribute
-            Inherits Attribute
-        End Class
-    End Class
-End Namespace
-
-Namespace Casesensitive2
-    Public Class CaseSensitive2
-        Public Class TestDummyAttribute
-            Inherits Attribute
-        End Class
-    End Class
-End Namespace
-
-Namespace CaseSensitive3
-    Public Class CaseSensitive3
-        Public Class TestDummyAttribute
-            Inherits Attribute
-        End Class
-    End Class
-End Namespace
-",
-            @"
-using System;
-
-namespace Issue1154
-{
-    [CaseSensitive1.Casesensitive1.TestDummy]
-    public partial class UpperLowerCase
-    {
-    }
-
-    [Casesensitive2.CaseSensitive2.TestDummy]
-    public partial class LowerUpperCase
-    {
-    }
-
-    [CaseSensitive3.CaseSensitive3.TestDummy]
-    public partial class SameCase
-    {
-    }
-}
-
-namespace CaseSensitive1
-{
-    public partial class Casesensitive1
-    {
-        public partial class TestDummyAttribute : Attribute
-        {
-        }
-    }
-}
-
-namespace Casesensitive2
-{
-    public partial class CaseSensitive2
-    {
-        public partial class TestDummyAttribute : Attribute
-        {
-        }
-    }
-}
-
-namespace CaseSensitive3
-{
-    public partial class CaseSensitive3
-    {
-        public partial class TestDummyAttribute : Attribute
-        {
-        }
-    }
-}
-");
+}");
     }
 
 

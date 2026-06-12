@@ -6,7 +6,7 @@ Convert code from VB.NET to C# (and vice versa) using Roslyn - all free and open
 * [Visual Studio extension](https://marketplace.visualstudio.com/items?itemName=SharpDevelopTeam.CodeConverter)
   * To install close VS and double-click the downloadeded .vsix file
 * [Online snippet converter](https://icsharpcode.github.io/CodeConverter/)
-* Command line `dotnet tool install ICSharpCode.CodeConverter.codeconv --global` (still requires VS2026 18.0+ installed)
+* Command line `dotnet tool install ICSharpCode.CodeConverter.codeconv --global` (still requires VS2022 17.1+ installed)
 * [Nuget library](https://www.nuget.org/packages/ICSharpCode.CodeConverter/) (this underpins all other free converters you'll find online)
 
 See [wiki](https://github.com/icsharpcode/CodeConverter/wiki) for advice on getting the best results, or the [changelog](https://github.com/icsharpcode/CodeConverter/blob/master/CHANGELOG.md) for recent improvements.
@@ -15,7 +15,7 @@ See [wiki](https://github.com/icsharpcode/CodeConverter/wiki) for advice on gett
 
 Adds context menu items to convert projects/files between VB.NET and C#. See the [wiki documentation](https://github.com/icsharpcode/CodeConverter/wiki) for advice / help using it.
 
-Download from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=SharpDevelopTeam.CodeConverter) (Ideally use VS VS2026 18.0+)
+Download from [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=SharpDevelopTeam.CodeConverter) (Use VS 2022 17.1+)
 
 * Flexible: Convert a small selection, or a whole solution in one go, in either direction.
 * Accurate: Full project context (through Roslyn) is used to get the most accurate conversion.
@@ -36,7 +36,7 @@ The VB -> C# conversion quality is much higher than the C# -> VB conversion qual
 
 ### Use cases
 
-Visual Basic .NET is slowly dying. It has support for *some* project types from .NET 5, but won't be getting new features according to the [.NET Team Blog](https://devblogs.microsoft.com/vbteam/visual-basic-support-planned-for-net-5-0/). Hence the main use case for:
+Visual Basic .NET is slowly dying. It has support for *some* project types on .NET 5, but won't be getting new features according to the [.NET Team Blog](https://devblogs.microsoft.com/vbteam/visual-basic-support-planned-for-net-5-0/). Hence the main use case for:
 * VB->C#: moving whole projects
 * C#->VB: help incorporate snippets from stack overflow into existing VB codebase, or to help learning one language from the other
 
@@ -47,14 +47,13 @@ Visual Basic .NET is slowly dying. It has support for *some* project types from 
 * Integrating the NuGet library
   * See [CodeConversion.ConvertDocumentUnhandledAsync](https://github.com/icsharpcode/CodeConverter/blob/8226313a8d46d5dd73bd35f07af2212e6155d0fd/Vsix/CodeConversion.cs#L226) or [CodeConversion.ConvertProjectUnhandled](https://github.com/icsharpcode/CodeConverter/blob/daa741246770fabf9aa87cd75b753220306aaaaa/Vsix/CodeConversion.cs#L276-L279) in the VSIX project.
   * See [ConverterController](https://github.com/icsharpcode/CodeConverter/blob/master/Web/ConverterController.cs) for a more web-focused API.
-* Note: If converting net framework projects, the command line dropped support in version 10, but the visual studio extension still supports it
 
 ## Building/running from source
 
-1. Ensure you have [.NET Core SDK 10.0](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+1. Ensure you have [.NET Core SDK 6.0](https://dotnet.microsoft.com/download/dotnet-core/6.0)
 2. Open the solution in Visual Studio 2022+ (Community edition is sufficient)
-3. To run the website, set web as the startup project
-  * You will need Node (LTS)
+3. To run the website, set CodeConverter.Web as the startup project
+  * You will need [Node (LTS)](https://community.chocolatey.org/packages/nodejs-lts) 16.* (node 17 introduces a breaking change causing ERR_OSSL_EVP_UNSUPPORTED)
 5. To run the Visual Studio extension, set Vsix as the startup project
    * A new instance of Visual Studio will open with the extension installed
 

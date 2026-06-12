@@ -131,8 +131,6 @@ internal static class CSharpUtil
     /// </summary>
     public static ExpressionSyntax AddParens(this ExpressionSyntax expression)
     {
-        if (expression is ParenthesizedExpressionSyntax)
-            return expression;
         return SyntaxFactory.ParenthesizedExpression(expression);
     }
 

@@ -90,8 +90,8 @@ internal static class VbOperatorConversion
             switch (operation) {
                 case IConversionOperation co:
                     return await ConvertMyGroupCollectionPropertyGetWithUnderlyingFieldAsync(co.Operand.Syntax);
-                case IPropertyReferenceOperation pro when pro.Property.IsMyGroupCollectionProperty:
-                    var associatedField = pro.Property.AssociatedField;
+                case IPropertyReferenceOperation pro when pro.Property.IsMyGroupCollectionProperty():
+                    var associatedField = pro.Property.GetAssociatedField();
                     var propertyReferenceSyntax = (VisualBasicSyntaxNode)((IPropertyReferenceOperation)pro.Instance).Syntax;
                     var qualification = await propertyReferenceSyntax.AcceptAsync<ExpressionSyntax>(_triviaConvertingVisitor);
                     return SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, qualification, ValidSyntaxFactory.IdentifierName(associatedField.Name));

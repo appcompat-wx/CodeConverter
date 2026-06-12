@@ -1,6 +1,4 @@
-﻿using System.Collections.Immutable;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Operations;
+﻿using Microsoft.CodeAnalysis.Operations;
 
 namespace ICSharpCode.CodeConverter.CSharp;
 
@@ -55,100 +53,5 @@ internal static class SemanticModelExtensions
     {
         var instanceReferenceOperations = semanticModel.GetOperation(e).DescendantsAndSelf().OfType<IInstanceReferenceOperation>().ToArray();
         return !instanceReferenceOperations.Any(x => x.ReferenceKind == InstanceReferenceKind.ContainingTypeInstance);
-    }
-
-    /// <returns>The ISymbol if available in this document, otherwise null</returns>
-    /// <remarks>It's possible to use semanticModel.GetSpeculativeSymbolInfo(...) if you know (or can approximate) the position where the symbol would have been in the original document.</remarks>
-    public static TSymbol GetSymbolInfoInDocument<TSymbol>(this SemanticModel semanticModel, SyntaxNode node) where TSymbol : class, ISymbol
-    {
-        return semanticModel.SyntaxTree == node.SyntaxTree ? semanticModel.GetSymbolInfo(node).ExtractBestMatch<TSymbol>() : null;
-    }
-
-    public static RefConversion NeedsVariableForArgument(this SemanticModel semanticModel, VBasic.Syntax.ArgumentSyntax node, RefKind refKind)
-    {
-        if (refKind == RefKind.None) return RefConversion.Inline;
-        if (!(node is VBSyntax.SimpleArgumentSyntax sas) || sas is { Expression: VBSyntax.ParenthesizedExpressionSyntax }) return RefConversion.PreAssigment;
-        var expression = sas.Expression;
-
-        return semanticModel.GetRefConversionForExpression(expression);
-
-    }
-
-    public static RefConversion GetRefConversionForExpression(this SemanticModel semanticModel, VBasic.Syntax.ExpressionSyntax expression)
-    {
-        RefConversion GetRefConversion(VBSyntax.ExpressionSyntax expr)
-        {
-            var symbolInfo = semanticModel.GetSymbolInfoInDocument<ISymbol>(expr);
-            if (symbolInfo is IPropertySymbol { ReturnsByRef: false, ReturnsByRefReadonly: false } propertySymbol) {
-                // a property in VB.NET code can be ReturnsByRef if it's defined in a C# assembly the VB.NET code references
-                return propertySymbol.IsReadOnly ? RefConversion.PreAssigment : RefConversion.PreAndPostAssignment;
-            } else if (symbolInfo is IFieldSymbol { IsConst: true } or ILocalSymbol { IsConst: true }) {
-                return RefConversion.PreAssigment;
-            } else if (symbolInfo is IMethodSymbol { ReturnsByRef: false, ReturnsByRefReadonly: false }) {
-                // a method in VB.NET code can be ReturnsByRef if it's defined in a C# assembly the VB.NET code references
-                return RefConversion.PreAssigment;
-            }
-
-            if (DeclaredInUsing(symbolInfo)) return RefConversion.PreAssigment;
-
-            if (expr is VBasic.Syntax.IdentifierNameSyntax || expr is VBSyntax.MemberAccessExpressionSyntax ||
-                IsRefArrayAcces(expr)) {
-
-                var typeInfo = semanticModel.GetTypeInfo(expr);
-                bool isTypeMismatch = typeInfo.Type == null || !typeInfo.Type.Equals(typeInfo.ConvertedType, SymbolEqualityComparer.IncludeNullability);
-
-                if (isTypeMismatch) {
-                    return RefConversion.PreAndPostAssignment;
-                }
-
-                return RefConversion.Inline;
-            }
-
-            return RefConversion.PreAssigment;
-        }
-
-        bool IsRefArrayAcces(VBSyntax.ExpressionSyntax expr)
-        {
-            if (!(expr is VBSyntax.InvocationExpressionSyntax ies)) return false;
-            var op = semanticModel.GetOperation(ies);
-            return (op.IsArrayElementAccess() || IsReturnsByRefPropertyElementAccess(op))
-                && GetRefConversion(ies.Expression) == RefConversion.Inline;
-
-            static bool IsReturnsByRefPropertyElementAccess(IOperation op)
-            {
-                return op.IsPropertyElementAccess()
-                 && op is IPropertyReferenceOperation { Property: { } prop }
-                 && (prop.ReturnsByRef || prop.ReturnsByRefReadonly);
-            }
-        }
-
-        return GetRefConversion((VBSyntax.ExpressionSyntax)expression);
-    }
-
-    private static bool DeclaredInUsing(ISymbol symbolInfo)
-    {
-        return symbolInfo?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax()?.Parent?.Parent?.IsKind(VBasic.SyntaxKind.UsingStatement) == true;
-    }
-
-    /// <summary>
-    /// https://github.com/icsharpcode/CodeConverter/issues/324
-    /// https://github.com/icsharpcode/CodeConverter/issues/310
-    /// </summary>
-    public enum RefConversion
-    {
-        /// <summary>
-        /// e.g. Normal field, parameter or local
-        /// </summary>
-        Inline,
-        /// <summary>
-        /// Needs assignment before and/or after
-        /// e.g. Method/Property result
-        /// </summary>
-        PreAssigment,
-        /// <summary>
-        /// Needs assignment before and/or after
-        /// i.e. Property
-        /// </summary>
-        PreAndPostAssignment
     }
 }

@@ -8,17 +8,17 @@ internal static class UsageTypeAnalyzer
     /// <summary>
     /// Only detects direct assignment, not use of ByRef, late binding, dynamic, reflection, etc.
     /// </summary>
-    public static async ValueTask<bool> IsNeverWrittenAsync(this Solution solution, ISymbol symbol, Location outsideLocation = null, CancellationToken cancellationToken = default)
+    public static async ValueTask<bool> IsNeverWrittenAsync(this Solution solution, ISymbol symbol, Location outsideLocation = null)
     {
-        return symbol.AllWriteUsagesKnowable() && !await ContainsWriteUsagesForAsync(solution, symbol, outsideLocation, cancellationToken);
+        return symbol.AllWriteUsagesKnowable() && !await ContainsWriteUsagesForAsync(solution, symbol, outsideLocation);
     }
 
-    public static async Task<bool> ContainsWriteUsagesForAsync(Solution solution, ISymbol symbol, Location outsideLocation = null, CancellationToken cancellationToken = default)
+    public static async Task<bool> ContainsWriteUsagesForAsync(Solution solution, ISymbol symbol, Location outsideLocation = null)
     {
-        var references = await GetUsagesAsync(solution, symbol, outsideLocation, cancellationToken);
+        var references = await GetUsagesAsync(solution, symbol, outsideLocation);
         var operationsReferencing = references.Select(async g => {
-            var semanticModel = await g.Doc.GetSemanticModelAsync(cancellationToken);
-            var syntaxRoot = await g.Doc.GetSyntaxRootAsync(cancellationToken);
+            var semanticModel = await g.Doc.GetSemanticModelAsync();
+            var syntaxRoot = await g.Doc.GetSyntaxRootAsync();
             return g.Usages.Select(l => syntaxRoot.FindNode(l.Location.SourceSpan))
                 .Select(syntaxNode => semanticModel.GetAncestorOperationOrNull<IOperation>(syntaxNode));
         });
@@ -29,9 +29,9 @@ internal static class UsageTypeAnalyzer
         return false;
     }
 
-    public static async Task<IEnumerable<(Document Doc, ReferenceLocation[] Usages)>> GetUsagesAsync(this Solution solution, ISymbol symbol, Location outsideLocation = null, CancellationToken cancellationToken = default)
+    public static async Task<IEnumerable<(Document Doc, ReferenceLocation[] Usages)>> GetUsagesAsync(this Solution solution, ISymbol symbol, Location outsideLocation = null)
     {
-        var references = await SymbolFinder.FindReferencesAsync(symbol, solution, cancellationToken);
+        var references = await SymbolFinder.FindReferencesAsync(symbol, solution);
         return references.SelectMany(r => r.Locations).GroupBy(l => (Doc: l.Document, Tree: l.Location.SourceTree))
             .Select(g => (g.Key.Doc, Usages: g.Where(l => l.Location.SourceTree != outsideLocation?.SourceTree || !l.Location.SourceSpan.OverlapsWith(outsideLocation.SourceSpan)).ToArray()))
             .Where(g => g.Usages.Any());

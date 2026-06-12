@@ -43,10 +43,8 @@ public class SolutionConverter
             return (proj.Name, RelativeProjPath: relativeProjPath, ProjContents: projContents);
         });
 
-        // .slnx files have no project GUIDs - skip the GUID lookup by passing empty solution contents
-        var isSlnx = string.Equals(Path.GetExtension(solutionFilePath), ".slnx", StringComparison.OrdinalIgnoreCase);
         var solutionFileTextEditor = new SolutionFileTextEditor();
-        var projectReferenceReplacements = solutionFileTextEditor.GetProjectFileProjectReferenceReplacements(projTuples, isSlnx ? "" : sourceSolutionContents);
+        var projectReferenceReplacements = solutionFileTextEditor.GetProjectFileProjectReferenceReplacements(projTuples, sourceSolutionContents);
 
         return new SolutionConverter(solutionFilePath, sourceSolutionContents, projectsToConvert, projectReferenceReplacements, languageConversion, fileSystem, progress ?? new Progress<ConversionProgress>(), cancellationToken);
     }
@@ -71,20 +69,17 @@ public class SolutionConverter
     public async IAsyncEnumerable<ConversionResult> ConvertAsync()
     {
         var projectsToUpdateReferencesOnly = _projectsToConvert.First().Solution.Projects.Except(_projectsToConvert);
-
-        foreach (var project in _projectsToConvert) {
-            await foreach (var result in ConvertProjectAsync(project).WithCancellation(_cancellationToken)) {
-                yield return result;
-            }
+        var solutionResult = string.IsNullOrWhiteSpace(_sourceSolutionContents) ? Enumerable.Empty<ConversionResult>() : ConvertSolutionFile().Yield();
+        var convertedProjects = await ConvertProjectsAsync();
+        var projectsAndSolutionResults = UpdateProjectReferences(projectsToUpdateReferencesOnly).Concat(solutionResult).ToAsyncEnumerable();
+        await foreach (var p in convertedProjects.Concat(projectsAndSolutionResults)) {
+            yield return p;
         }
+    }
 
-        foreach (var result in UpdateProjectReferences(projectsToUpdateReferencesOnly)) {
-            yield return result;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_sourceSolutionContents)) {
-            yield return ConvertSolutionFile();
-        }
+    private async Task<IAsyncEnumerable<ConversionResult>> ConvertProjectsAsync()
+    {
+        return _projectsToConvert.ToAsyncEnumerable().SelectMany(ConvertProjectAsync);
     }
 
     private IAsyncEnumerable<ConversionResult> ConvertProjectAsync(Project project)
@@ -113,20 +108,12 @@ public class SolutionConverter
 
     public ConversionResult ConvertSolutionFile()
     {
-        IEnumerable<(string Find, string Replace, bool FirstOnly)> slnProjectReferenceReplacements;
+        var projectTypeGuidMappings = _languageConversion.GetProjectTypeGuidMappings();
+        var relativeProjPaths = _projectsToConvert.Select(proj =>
+            (proj.Name, RelativeProjPath: PathConverter.GetRelativePath(_solutionFilePath, proj.FilePath)));
 
-        if (string.Equals(Path.GetExtension(_solutionFilePath), ".slnx", StringComparison.OrdinalIgnoreCase)) {
-            var relativeProjPaths = _projectsToConvert.Select(proj =>
-                PathConverter.GetRelativePath(_solutionFilePath, proj.FilePath));
-            slnProjectReferenceReplacements = SolutionFileTextEditor.GetSlnxSolutionFileProjectReferenceReplacements(
-                relativeProjPaths, _sourceSolutionContents);
-        } else {
-            var projectTypeGuidMappings = _languageConversion.GetProjectTypeGuidMappings();
-            var relativeProjPaths = _projectsToConvert.Select(proj =>
-                (proj.Name, RelativeProjPath: PathConverter.GetRelativePath(_solutionFilePath, proj.FilePath)));
-            slnProjectReferenceReplacements = SolutionFileTextEditor.GetSolutionFileProjectReferenceReplacements(
-                relativeProjPaths, _sourceSolutionContents, projectTypeGuidMappings);
-        }
+        var slnProjectReferenceReplacements = SolutionFileTextEditor.GetSolutionFileProjectReferenceReplacements(relativeProjPaths,
+            _sourceSolutionContents, projectTypeGuidMappings);
 
         var convertedSolutionContents = TextReplacementConverter.Replace(_sourceSolutionContents, slnProjectReferenceReplacements);
         return new ConversionResult(convertedSolutionContents) {

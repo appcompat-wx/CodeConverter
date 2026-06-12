@@ -63,7 +63,7 @@ internal static class ProjectMergedDeclarationExtensions
         var projectDir = Path.Combine(vbProject.GetDirectoryPath(), "My Project");
 
         var compilation = await vbProject.GetCompilationAsync(cancellationToken);
-        var embeddedSourceTexts = await GetAllEmbeddedSourceTextAsync(compilation).SelectSafe((r, i) => (Text: r, Suffix: $".Static.{i+1}")).ToArraySafeAsync(cancellationToken);
+        var embeddedSourceTexts = await GetAllEmbeddedSourceTextAsync(compilation).Select((r, i) => (Text: r, Suffix: $".Static.{i+1}")).ToArrayAsync(cancellationToken);
         var generatedSourceTexts = (Text: await GetDynamicallyGeneratedSourceTextAsync(compilation), Suffix: ".Dynamic").Yield();
 
         foreach (var (text, suffix) in embeddedSourceTexts.Concat(generatedSourceTexts)) {
@@ -82,7 +82,7 @@ internal static class ProjectMergedDeclarationExtensions
     private static async IAsyncEnumerable<string> GetAllEmbeddedSourceTextAsync(Compilation compilation)
     {
         var roots = await compilation.SourceModule.GlobalNamespace.Locations.
-            Where(l => !l.IsInSource).Select(l => l.EmbeddedSyntaxTree)
+            Where(l => !l.IsInSource).Select(CachedReflectedDelegates.GetEmbeddedSyntaxTree)
             .SelectAsync(t => t.GetTextAsync());
         foreach (var r in roots) yield return r.ToString();
     }
@@ -164,7 +164,7 @@ End Namespace";
         for (var symbolToRename = await GetElementToRename(project); symbolToRename != null; symbolToRename = await GetElementToRename(project, toSkip)) {
             string newName = symbolToRename.Name.Replace(oldNamePrefix, newNamePrefix);
             try {
-                var renamedSolution = await Renamer.RenameSymbolAsync(project.Solution, symbolToRename, new SymbolRenameOptions(), newName, cancellationToken);
+                var renamedSolution = await Renamer.RenameSymbolAsync(project.Solution, symbolToRename, newName, project.Solution.Workspace.Options, cancellationToken);
                 project = renamedSolution.GetProject(project.Id);
             } catch (Exception e) {
                 toSkip++;

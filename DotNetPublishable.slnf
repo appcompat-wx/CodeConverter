@@ -1,9 +1,9 @@
 {
   "solution": {
-    "path": "CodeConverter.slnx",
+    "path": "CodeConverter.sln",
     "projects": [
       "Func\\Func.csproj",
-      "Web\\web.esproj"
+      "Web\\Web.csproj"
     ]
   }
 }

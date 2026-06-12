@@ -1,6 +1,4 @@
 ﻿using System.Threading.Tasks;
-using ICSharpCode.CodeConverter.Common;
-using ICSharpCode.CodeConverter.CSharp;
 using ICSharpCode.CodeConverter.Tests.TestRunners;
 using Xunit;
 
@@ -766,34 +764,33 @@ internal static partial class Other
         await TestConversionVisualBasicToCSharpAsync(@"Public Class Issue856
     Sub Main()
         Dim decimalTarget As Decimal
-        Double.TryParse(""123"".AsSpan(), decimalTarget)
+        Double.TryParse(""123"", decimalTarget)
         
         Dim longTarget As Long
-        Integer.TryParse(""123"".AsSpan(), longTarget)
+        Integer.TryParse(""123"", longTarget)
         
         Dim intTarget As Integer
-        Long.TryParse(""123"".AsSpan(), intTarget)
+        Long.TryParse(""123"", intTarget)
     End Sub
 
-End Class", @"using System;
-
+End Class", @"
 public partial class Issue856
 {
     public void Main()
     {
         var decimalTarget = default(decimal);
         double argresult = (double)decimalTarget;
-        double.TryParse(""123"".AsSpan(), out argresult);
+        double.TryParse(""123"", out argresult);
         decimalTarget = (decimal)argresult;
 
         var longTarget = default(long);
         int argresult1 = (int)longTarget;
-        int.TryParse(""123"".AsSpan(), out argresult1);
+        int.TryParse(""123"", out argresult1);
         longTarget = argresult1;
 
         var intTarget = default(int);
         long argresult2 = intTarget;
-        long.TryParse(""123"".AsSpan(), out argresult2);
+        long.TryParse(""123"", out argresult2);
         intTarget = (int)argresult2;
     }
 
@@ -912,85 +909,6 @@ public partial class BinaryExpressionRefParameter
     {
         Console.WriteLine(arg);
         arg = 0;
-    }
-}");
-    }
-
-    [Fact]
-    public async Task Issue1225_OutAttributeOnParameterFromOtherFileDoesNotCrashAsync()
-    {
-        // Issue #1225: IsOutAttribute called SemanticModel.GetTypeInfo(attribute) on an attribute node
-        // that belongs to a different syntax tree (parameter declared in a separate source file).
-        // This caused ArgumentException "Knoten ist nicht innerhalb Syntaxbaum" /
-        // "Node is not within syntax tree". The fix falls back to name-based checking
-        // when the attribute's syntax tree differs from the current semantic model's tree.
-        var serviceFileContent = @"Imports System.Runtime.InteropServices
-Public Class LicenseService
-    Public Shared ReadOnly Property Instance As LicenseService
-        Get
-            Return New LicenseService()
-        End Get
-    End Property
-
-    Public Function GetLicenseMaybe(<Out> ByRef licenseName As String) As Boolean
-        licenseName = Nothing
-        Return False
-    End Function
-End Class";
-
-        var callerFileContent = @"Public Class Caller
-    Public Sub Test(licenseName As String)
-        Dim res = LicenseService.Instance.GetLicenseMaybe(licenseName)
-    End Sub
-End Class";
-
-        var options = new TextConversionOptions(DefaultReferences.With()) { ShowCompilationErrors = true };
-        var languageConversion = new VBToCSConversion { ConversionOptions = options };
-        var serviceTree = languageConversion.CreateTree(serviceFileContent);
-        var callerTree = languageConversion.CreateTree(callerFileContent);
-
-        // Add both files to the same project so that the VB compilation sees both
-        var serviceDoc = await languageConversion.CreateProjectDocumentFromTreeAsync(serviceTree, options.References);
-        var callerDoc = serviceDoc.Project.AddDocumentFromTree(callerTree);
-
-        // Convert only the caller document; its parameter info comes from the service file's syntax tree
-        var result = await ProjectConversion.ConvertSingleAsync<VBToCSConversion>(callerDoc, options);
-        var output = (result.ConvertedCode ?? "") + (result.GetExceptionsAsString() ?? "");
-
-        Assert.DoesNotContain("#error", output);
-        Assert.Contains("GetLicenseMaybe", output);
-    }
-
-    [Fact]
-    public async Task OptionalStructRefParameterUsesDefaultNotNullIssue886Async()
-    {
-        // Issue #886: When a VB method has an optional ByRef struct parameter with Nothing as the default,
-        // the generated C# should use `default` rather than `null` (null is not valid for value types).
-        await TestConversionVisualBasicToCSharpAsync(@"
-Structure S
-End Structure
-Class C
-    Sub Foo(Optional ByRef s As S = Nothing)
-    End Sub
-    Sub Bar()
-        Foo()
-    End Sub
-End Class
-", @"using System.Runtime.InteropServices;
-
-internal partial struct S
-{
-}
-
-internal partial class C
-{
-    public void Foo([Optional] ref S s)
-    {
-    }
-    public void Bar()
-    {
-        S args = default;
-        Foo(s: ref args);
     }
 }");
     }

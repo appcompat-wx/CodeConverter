@@ -1,5 +1,0 @@
-{
-    "dotnet.preferCSharpExtension": true,
-    "dotnet.defaultSolution": "CodeConverter.sln",
-    "vscode-as-git-mergetool.settingsAssistantOnStartup": false
-}

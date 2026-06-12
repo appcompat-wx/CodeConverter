@@ -4,37 +4,6 @@ namespace ICSharpCode.CodeConverter.Common;
 
 public class SolutionFileTextEditor : ISolutionFileTextEditor
 {
-    /// <summary>
-    /// For .slnx files: simply replaces project path extensions (no GUIDs or project type GUIDs exist in .slnx).
-    /// </summary>
-    public static List<(string Find, string Replace, bool FirstOnly)> GetSlnxSolutionFileProjectReferenceReplacements(
-        IEnumerable<string> relativeProjPaths, string sourceSolutionContents)
-    {
-        if (string.IsNullOrWhiteSpace(sourceSolutionContents)) return new List<(string Find, string Replace, bool FirstOnly)>();
-
-        var projectReferenceReplacements = new List<(string Find, string Replace, bool FirstOnly)>();
-        foreach (var relativeProjPath in relativeProjPaths)
-        {
-            // Add replacements for both backslash and forward-slash variants so .slnx files using either separator are handled
-            var nativeVariant = relativeProjPath;
-            var altVariant = relativeProjPath.Replace(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-            // native (likely backslashes on Windows)
-            var escapedNative = Regex.Escape(nativeVariant);
-            var newNative = PathConverter.TogglePathExtension(nativeVariant);
-            projectReferenceReplacements.Add((escapedNative, newNative, false));
-
-            // alternate (forward slashes)
-            if (altVariant != nativeVariant) {
-                var escapedAlt = Regex.Escape(altVariant);
-                var newAlt = PathConverter.TogglePathExtension(altVariant);
-                projectReferenceReplacements.Add((escapedAlt, newAlt, false));
-            }
-        }
-
-        return projectReferenceReplacements;
-    }
-
     public static List<(string Find, string Replace, bool FirstOnly)> GetSolutionFileProjectReferenceReplacements(
         IEnumerable<(string Name, string RelativeProjPath)> projTuples, string sourceSolutionContents,
         IReadOnlyCollection<(string, string)> projTypeGuidMappings)

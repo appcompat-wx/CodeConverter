@@ -161,7 +161,10 @@ End Class");
         Dim b As String
         b = New String(""test"")
     End Sub
-End Class");
+End Class
+
+1 source compilation errors:
+CS1503: Argument 1: cannot convert from 'string' to 'char*'");
     }
 
     [Fact]
@@ -177,7 +180,10 @@ End Class");
     Private Sub TestMethod()
         Dim b As String = New String(""test"")
     End Sub
-End Class");
+End Class
+
+1 source compilation errors:
+CS1503: Argument 1: cannot convert from 'string' to 'char*'");
     }
 
     [Fact]
@@ -193,7 +199,10 @@ End Class");
     Private Sub TestMethod()
         Dim b = New String(""test"")
     End Sub
-End Class");
+End Class
+
+1 source compilation errors:
+CS1503: Argument 1: cannot convert from 'string' to 'char*'");
     }
 
     [Fact]
@@ -1279,34 +1288,6 @@ CS0103: The name 'Console' does not exist in the current context");
         End Select
         Return False
     End Function
-End Class");
-    }
-
-    [Fact]
-    public async Task SelectCase_WithRelationalPatternAsync()
-    {
-        await TestConversionCSharpToVisualBasicAsync(@"class TestClass
-{
-    public void Classify(int n)
-    {
-        switch (n) {
-            case < 0:
-                System.Console.Write(""negative"");
-                break;
-            case >= 0:
-                System.Console.Write(""non-negative"");
-                break;
-        }
-    }
-}", @"Friend Class TestClass
-    Public Sub Classify(n As Integer)
-        Select Case n
-            Case < 0
-                Console.Write(""negative"")
-            Case >= 0
-                Console.Write(""non-negative"")
-        End Select
-    End Sub
 End Class");
     }
 

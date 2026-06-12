@@ -31,11 +31,11 @@ internal static class SymbolRenamer
         var solution = project.Solution;
         foreach (var (originalSymbol, newName) in symbolsWithNewNames.OrderByDescending(s => s.Original.DeclaringSyntaxReferences.Select(x => x.Span.End).Max())) {
             project = solution.GetProject(project.Id);
-            var compilation = await project.GetCompilationAsync(cancellationToken);
+            var compilation = await project.GetCompilationAsync();
             ISymbol currentDeclaration = SymbolFinder.FindSimilarSymbols(originalSymbol, compilation).FirstOrDefault();
             if (currentDeclaration == null)
                 continue; //Must have already renamed this symbol for a different reason
-            solution = await Renamer.RenameSymbolAsync(solution, currentDeclaration, new(), newName, cancellationToken);
+            solution = await Renamer.RenameSymbolAsync(solution, currentDeclaration, newName, solution.Workspace.Options);
         }
 
         return solution.GetProject(project.Id);
