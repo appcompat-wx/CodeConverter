@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
-using static Microsoft.CodeAnalysis.VisualBasic.VisualBasicExtensions;
 using SyntaxFactory = Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 using Microsoft.CodeAnalysis.Text;
 using ICSharpCode.CodeConverter.Util.FromRoslyn;
@@ -90,7 +89,7 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                 _extraUsingDirectives.Add("System");
                 return "Environment.Exit(0);";
             default:
-                throw new NotImplementedException(VBasic.VisualBasicExtensions.Kind(node.StopOrEndKeyword) + " not implemented!");
+                throw new NotImplementedException(node.StopOrEndKeyword.Kind() + " not implemented!");
         }
     }
 
@@ -211,22 +210,9 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
         var lhs = await node.Left.AcceptAsync<ExpressionSyntax>(_expressionVisitor);
         var lOperation = _semanticModel.GetOperation(node.Left);
 
+        //Already dealt with by call to the same method in VisitInvocationExpression
         var (parameterizedPropertyAccessMethod, _) = await CommonConversions.GetParameterizedPropertyAccessMethodAsync(lOperation);
-
-        // If it's a simple assignment, we can return early as it's already handled by ConvertInvocationExpression
-        if (parameterizedPropertyAccessMethod != null && node.IsKind(VBasic.SyntaxKind.SimpleAssignmentStatement)) {
-            return SingleStatement(lhs);
-        }
-
-        // For compound assignments, we want to expand it to the setter, but parameterizedPropertyAccessMethod above
-        // returned 'get_Item' or 'set_Item' depending on operation context.
-        // We know for sure the left-hand side is a getter invocation for compound assignments (e.g. this.get_Item(0) += 2),
-        // but we need the setter name to build the final expression.
-        string setMethodName = null;
-        if (lOperation is IPropertyReferenceOperation pro && pro.Arguments.Any() && !Microsoft.CodeAnalysis.VisualBasic.VisualBasicExtensions.IsDefault(pro.Property)) {
-            setMethodName = pro.Property.SetMethod?.Name;
-        }
-
+        if (parameterizedPropertyAccessMethod != null) return SingleStatement(lhs);
         var rhs = await node.Right.AcceptAsync<ExpressionSyntax>(_expressionVisitor);
 
         if (node.Left is VBSyntax.IdentifierNameSyntax id &&
@@ -254,41 +240,16 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                 
             var nonCompoundRhs = SyntaxFactory.BinaryExpression(nonCompound, lhs, typeConvertedRhs);
             var typeConvertedNonCompoundRhs = CommonConversions.TypeConversionAnalyzer.AddExplicitConversion(node.Right, nonCompoundRhs, forceSourceType: rhsTypeInfo.ConvertedType, forceTargetType: lhsTypeInfo.Type);
-            if (nonCompoundRhs != typeConvertedNonCompoundRhs || setMethodName != null) {
+            if (nonCompoundRhs != typeConvertedNonCompoundRhs) {
                 kind = SyntaxKind.SimpleAssignmentExpression;
                 typeConvertedRhs = typeConvertedNonCompoundRhs;
             }
-        } else if (setMethodName != null && node.IsKind(VBasic.SyntaxKind.ExponentiateAssignmentStatement)) {
-            // ExponentiateAssignmentStatement evaluates to Math.Pow invocation which might need casting back to lhsType
-            var typeConvertedNonCompoundRhs = CommonConversions.TypeConversionAnalyzer.AddExplicitConversion(node.Right, typeConvertedRhs, forceSourceType: _semanticModel.Compilation.GetTypeByMetadataName("System.Double"), forceTargetType: lhsTypeInfo.Type);
-            kind = SyntaxKind.SimpleAssignmentExpression;
-            typeConvertedRhs = typeConvertedNonCompoundRhs;
         }
 
         rhs = typeConvertedRhs;
-
-        if (setMethodName != null) {
-            if (lhs is InvocationExpressionSyntax ies) {
-                ExpressionSyntax exprToReplace = ies.Expression;
-                if (exprToReplace is MemberAccessExpressionSyntax maes) {
-                    var newName = SyntaxFactory.IdentifierName(setMethodName).WithTriviaFrom(maes.Name);
-                    var stripThis = maes.Expression is ThisExpressionSyntax
-                        && node.Left.SkipIntoParens() is not VBSyntax.MemberAccessExpressionSyntax {
-                            Expression: not (VBSyntax.MeExpressionSyntax or VBSyntax.MyClassExpressionSyntax)
-                        };
-                    exprToReplace = stripThis ? newName.WithTriviaFrom(maes) : maes.WithName(newName);
-                } else if (exprToReplace is IdentifierNameSyntax) {
-                    exprToReplace = SyntaxFactory.IdentifierName(setMethodName).WithTriviaFrom(exprToReplace);
-                }
-                var newArgList = ies.ArgumentList.AddArguments(SyntaxFactory.Argument(rhs));
-                var newLhs = ies.WithExpression(exprToReplace).WithArgumentList(newArgList);
-                var postAssign = GetPostAssignmentStatements(node);
-                return postAssign.Insert(0, SyntaxFactory.ExpressionStatement(newLhs));
-            }
-            return SingleStatement(lhs);
-        }
-
+            
         var assignment = SyntaxFactory.AssignmentExpression(kind, lhs, rhs);
+
         var postAssignment = GetPostAssignmentStatements(node);
         return postAssignment.Insert(0, SyntaxFactory.ExpressionStatement(assignment));
     }
@@ -358,18 +319,8 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
         var csTargetArrayExpression = await node.Expression.AcceptAsync<ExpressionSyntax>(_expressionVisitor);
         var convertedBounds = (await CommonConversions.ConvertArrayBoundsAsync(node.ArrayBounds)).Sizes.ToList();
         if (preserve && convertedBounds.Count == 1) {
-            bool isProperty = _semanticModel.GetSymbolInfo(node.Expression).Symbol?.IsKind(SymbolKind.Property) == true;
-            var arrayToResize = isProperty ? CreateLocalVariableWithUniqueName(node.Expression, "arg" + csTargetArrayExpression.ToString().Split('.').Last(), csTargetArrayExpression) : default;
-            var resizeArg = isProperty ? (ExpressionSyntax)arrayToResize.Reference : csTargetArrayExpression;
-
-            var argumentList = new[] { resizeArg, convertedBounds.Single() }.CreateCsArgList(SyntaxKind.RefKeyword);
+            var argumentList = new[] { csTargetArrayExpression, convertedBounds.Single() }.CreateCsArgList(SyntaxKind.RefKeyword);
             var arrayResize = SyntaxFactory.InvocationExpression(ValidSyntaxFactory.MemberAccess(nameof(Array), nameof(Array.Resize)), argumentList);
-
-            if (isProperty) {
-                var assignment = SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, csTargetArrayExpression, arrayToResize.Reference);
-                return SyntaxFactory.List(new StatementSyntax[] { arrayToResize.Declaration, SyntaxFactory.ExpressionStatement(arrayResize), SyntaxFactory.ExpressionStatement(assignment) });
-            }
-
             return SingleStatement(arrayResize);
         }
         var newArrayAssignment = CreateNewArrayAssignment(node.Expression, csTargetArrayExpression, convertedBounds);
@@ -528,12 +479,10 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                 VBasic.VisualBasicSyntaxNode typeContainer = node.GetAncestor<VBSyntax.LambdaExpressionSyntax>()
                                                              ?? (VBasic.VisualBasicSyntaxNode)node.GetAncestor<VBSyntax.MethodBlockSyntax>()
                                                              ?? node.GetAncestor<VBSyntax.AccessorBlockSyntax>();
-                var enclosingMethodInfo = typeContainer switch {
-                    VBSyntax.LambdaExpressionSyntax e => _semanticModel.GetSymbolInfo(e).Symbol,
-                    VBSyntax.MethodBlockSyntax e => _semanticModel.GetDeclaredSymbol(e.SubOrFunctionStatement),
-                    VBSyntax.AccessorBlockSyntax e => _semanticModel.GetDeclaredSymbol(e.AccessorStatement),
-                    _ => null
-                } as IMethodSymbol;
+                var enclosingMethodInfo = await typeContainer.TypeSwitch(
+                    async (VBSyntax.LambdaExpressionSyntax e) => _semanticModel.GetSymbolInfo(e).Symbol,
+                    async (VBSyntax.MethodBlockSyntax e) => _semanticModel.GetDeclaredSymbol(e),
+                    async (VBSyntax.AccessorBlockSyntax e) => _semanticModel.GetDeclaredSymbol(e)) as IMethodSymbol;
 
                 if (IsIterator) return SingleStatement(SyntaxFactory.YieldStatement(SyntaxKind.YieldBreakStatement));
 
@@ -843,13 +792,6 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                     if (isObjectComparison) {
                         caseSwitchLabelSyntax = WrapInCasePatternSwitchLabelSyntax(node, relational.Value, csRelationalValue, false, operatorKind);
                     }
-                    else if (!isStringComparison && _semanticModel.GetConstantValue(relational.Value).HasValue) {
-                        csRelationalValue = CommonConversions.TypeConversionAnalyzer.AddExplicitConversion(relational.Value, csRelationalValue);
-                        var operatorToken = SyntaxFactory.Token(GetRelationalPatternTokenKind(operatorKind));
-                        caseSwitchLabelSyntax = SyntaxFactory.CasePatternSwitchLabel(
-                            SyntaxFactory.RelationalPattern(operatorToken, csRelationalValue),
-                            SyntaxFactory.Token(SyntaxKind.ColonToken));
-                    }
                     else {
                         var varName = CommonConversions.CsEscapedIdentifier(GetUniqueVariableNameInScope(node, "case"));
                         ExpressionSyntax csLeft = ValidSyntaxFactory.IdentifierName(varName);
@@ -868,8 +810,7 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                         lowerBoundCheck = ComparisonAdjustedForStringComparison(node, range.LowerBound, caseTypeInfo, lowerBound, csCaseVar, switchExprTypeInfo, ComparisonKind.LessThanOrEqual);
                     } else {
                         lowerBound = CommonConversions.TypeConversionAnalyzer.AddExplicitConversion(range.LowerBound, lowerBound);
-                        var (lowerBoundForComparison, csCaseVarForLower) = CastBothToUnderlyingTypeIfEnum(switchExprTypeInfo.ConvertedType, lowerBound, csCaseVar);
-                        lowerBoundCheck = SyntaxFactory.BinaryExpression(SyntaxKind.LessThanOrEqualExpression, lowerBoundForComparison, csCaseVarForLower);
+                        lowerBoundCheck = SyntaxFactory.BinaryExpression(SyntaxKind.LessThanOrEqualExpression, lowerBound, csCaseVar);
                     }
                     var upperBound = await range.UpperBound.AcceptAsync<ExpressionSyntax>(_expressionVisitor);
                     ExpressionSyntax upperBoundCheck;
@@ -878,8 +819,7 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
                         upperBoundCheck = ComparisonAdjustedForStringComparison(node, range.UpperBound, switchExprTypeInfo, csCaseVar, upperBound, caseTypeInfo, ComparisonKind.LessThanOrEqual);
                     } else {
                         upperBound = CommonConversions.TypeConversionAnalyzer.AddExplicitConversion(range.UpperBound, upperBound);
-                        var (csCaseVarForUpper, upperBoundForComparison) = CastBothToUnderlyingTypeIfEnum(switchExprTypeInfo.ConvertedType, csCaseVar, upperBound);
-                        upperBoundCheck = SyntaxFactory.BinaryExpression(SyntaxKind.LessThanOrEqualExpression, csCaseVarForUpper, upperBoundForComparison);
+                        upperBoundCheck = SyntaxFactory.BinaryExpression(SyntaxKind.LessThanOrEqualExpression, csCaseVar, upperBound);
                     }
                     var withinBounds = SyntaxFactory.BinaryExpression(SyntaxKind.LogicalAndExpression, lowerBoundCheck, upperBoundCheck);
                     labels.Add(VarWhen(varName, withinBounds));
@@ -939,21 +879,6 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
     private static bool IsEnumOrNullableEnum(ITypeSymbol convertedType) =>
         convertedType?.IsEnumType() == true || convertedType?.GetNullableUnderlyingType()?.IsEnumType() == true;
 
-    /// <summary>
-    /// When the switch expression is an enum, C# does not support &lt;= comparisons directly on enum values.
-    /// Cast both sides to the enum's underlying integer type so the comparison compiles.
-    /// </summary>
-    private (ExpressionSyntax Left, ExpressionSyntax Right) CastBothToUnderlyingTypeIfEnum(ITypeSymbol switchExprType, ExpressionSyntax left, ExpressionSyntax right)
-    {
-        var enumType = switchExprType?.IsEnumType() == true ? switchExprType as INamedTypeSymbol
-            : switchExprType?.GetNullableUnderlyingType() as INamedTypeSymbol;
-        if (enumType?.EnumUnderlyingType is not { } underlyingType) {
-            return (left, right);
-        }
-        var typeSyntax = CommonConversions.GetTypeSyntax(underlyingType);
-        return (ValidSyntaxFactory.CastExpression(typeSyntax, left), ValidSyntaxFactory.CastExpression(typeSyntax, right));
-    }
-
     private static CasePatternSwitchLabelSyntax VarWhen(SyntaxToken varName, ExpressionSyntax binaryExp)
     {
         var patternMatch = ValidSyntaxFactory.VarPattern(varName);
@@ -986,7 +911,7 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
         return (reusableExprWithoutSideEffects, stmts, exprWithoutSideEffects);
     }
 
-    private static bool IsReusableReadOnlyLocalKind(ISymbol symbol) => symbol is ILocalSymbol ls && (VBasic.VisualBasicExtensions.IsForEach(ls) || ls.IsUsing);
+    private static bool IsReusableReadOnlyLocalKind(ISymbol symbol) => symbol is ILocalSymbol ls && (VBasic.VisualBasicExtensions.IsForEach(ls) || ls.GetIsUsing());
 
     private (StatementSyntax Declaration, IdentifierNameSyntax Reference) CreateLocalVariableWithUniqueName(VBSyntax.ExpressionSyntax vbExpr, string variableNameBase, ExpressionSyntax expr, TypeSyntax forceType = null)
     {
@@ -1042,14 +967,6 @@ internal class MethodBodyExecutableStatementVisitor : VBasic.VisualBasicSyntaxVi
         VBasic.SyntaxKind.CaseNotEqualsClause => ComparisonKind.NotEquals,
         VBasic.SyntaxKind.CaseGreaterThanOrEqualClause => ComparisonKind.GreaterThanOrEqual,
         VBasic.SyntaxKind.CaseGreaterThanClause => ComparisonKind.GreaterThan,
-        _ => throw new ArgumentOutOfRangeException(nameof(caseClauseKind), caseClauseKind, null)
-    };
-
-    private static CS.SyntaxKind GetRelationalPatternTokenKind(VBasic.SyntaxKind caseClauseKind) => caseClauseKind switch {
-        VBasic.SyntaxKind.CaseLessThanClause => CS.SyntaxKind.LessThanToken,
-        VBasic.SyntaxKind.CaseLessThanOrEqualClause => CS.SyntaxKind.LessThanEqualsToken,
-        VBasic.SyntaxKind.CaseGreaterThanOrEqualClause => CS.SyntaxKind.GreaterThanEqualsToken,
-        VBasic.SyntaxKind.CaseGreaterThanClause => CS.SyntaxKind.GreaterThanToken,
         _ => throw new ArgumentOutOfRangeException(nameof(caseClauseKind), caseClauseKind, null)
     };
 

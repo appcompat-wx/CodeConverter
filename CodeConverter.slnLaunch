@@ -1,14 +1,14 @@
 [
   {
-    "Name": "Func + Web",
+    "Name": "Func \u002B Web",
     "Projects": [
       {
-        "Path": "Func\\Func.csproj",
+        "Name": "Web\\Web.csproj",
         "Action": "Start"
       },
       {
-        "Path": "Web\\web.esproj",
-        "Action": "StartWithoutDebugging"
+        "Name": "Func\\Func.csproj",
+        "Action": "Start"
       }
     ]
   }

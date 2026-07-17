@@ -56,9 +56,7 @@ internal class WinformsConversions
                 return CreateNameAssignment(maes.Expression.LastOrDefaultDescendant<VBSyntax.IdentifierNameSyntax>());
             }
         } else if (ShouldReassignProperty(s)){
-            var id = s.Left is VBSyntax.IdentifierNameSyntax directId ? directId : s.Left.LastOrDefaultDescendant<VBSyntax.IdentifierNameSyntax>();
-            if (id == null) return null;
-            return CreatePropertyAssignment(id);
+            return CreatePropertyAssignment(s.Left.LastOrDefaultDescendant<VBSyntax.IdentifierNameSyntax>());
         }
 
         return null;

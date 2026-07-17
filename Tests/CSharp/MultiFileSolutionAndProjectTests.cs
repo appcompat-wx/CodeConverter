@@ -18,14 +18,14 @@ public class MultiFileSolutionAndProjectTests
         _multiFileTestFixture = multiFileTestFixture;
     }
 
-    [Fact()]
+    [Fact]
     public async Task ConvertWholeSolutionAsync()
     {
 
         await _multiFileTestFixture.ConvertProjectsWhereAsync(p => true, Language.CS);
     }
 
-    [Fact()]
+    [Fact]
     public async Task ConvertVbLibraryOnlyAsync()
     {
         await _multiFileTestFixture.ConvertProjectsWhereAsync(p => p.Name == "VbLibrary", Language.CS);

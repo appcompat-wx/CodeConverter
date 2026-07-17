@@ -14,7 +14,6 @@ using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Threading;
-using static Basic.Reference.Assemblies.NetStandard20;
 using Task = System.Threading.Tasks.Task;
 
 namespace ICSharpCode.CodeConverter.VsExtension;
@@ -91,7 +90,7 @@ internal class CodeConversion
             await EnsureBuiltAsync(containingProject is null ? Array.Empty<Project>() : new[]{containingProject});
             var conversionResult = await _joinableTaskFactory.RunAsync(async () => {
                 var result = await ConvertDocumentUnhandledAsync<TLanguageConversion>(documentFilePath, selected, cancellationToken);
-                await WriteConvertedFilesAndShowSummaryAsync(new[] { result }.AsAsyncEnumerable());
+                await WriteConvertedFilesAndShowSummaryAsync(new[] { result }.ToAsyncEnumerable());
                 return result;
             });
 
@@ -378,7 +377,7 @@ Please 'Reload All' when Visual Studio prompts you.", true, files.Count > errors
 
     private async Task<TextConversionOptions> CreateTextConversionOptionsAsync(string documentPath = null)
     {
-        return new TextConversionOptions(References.All, documentPath) {
+        return new TextConversionOptions(DefaultReferences.NetStandard2, documentPath) {
             AbandonOptionalTasksAfter = await GetAbandonOptionalTasksAfterAsync()
         };
     }

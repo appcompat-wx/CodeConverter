@@ -30,25 +30,6 @@ World!"";
     }
 
     [Fact]
-    public async Task QuoteCharacterAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Public Class C
-    Public Sub s
-        Dim x As String = Chr(34)
-        x = Chr(92)
-    End Sub
-End Class", @"
-public partial class C
-{
-    public void s()
-    {
-        string x = ""\"""";
-        x = @""\"";
-    }
-}");
-    }
-
-    [Fact]
     public async Task QuotesAsync()
     {
         await TestConversionVisualBasicToCSharpAsync(@"Class TestClass
@@ -208,11 +189,11 @@ public partial class Class1
         {
             throw new Exception();
         }
-        if (CultureInfo.CurrentCulture.CompareInfo.Compare(s1 ?? """", """", CompareOptions.IgnoreCase | CompareOptions.IgnoreKanaType | CompareOptions.IgnoreWidth) == 0)
+        if (string.IsNullOrEmpty(s1))
         {
             // 
         }
-        if (CultureInfo.CurrentCulture.CompareInfo.Compare(s1 ?? """", """", CompareOptions.IgnoreCase | CompareOptions.IgnoreKanaType | CompareOptions.IgnoreWidth) == 0)
+        if (string.IsNullOrEmpty(s1))
         {
             // 
         }
@@ -504,7 +485,6 @@ public partial class Issue396ComparisonOperatorForStringsAsync
     End Sub
 End Class",
             @"using System;
-using System.IO;
 
 public partial class EnumTests
 {
@@ -540,53 +520,6 @@ public partial class Issue806
     public void Foo()
     {
         string x = Conversions.ToString(DateTime.Parse(""2022-01-01"")) + "" 15:00"";
-    }
-}");
-    }
-
-    [Fact]
-    public async Task CharEqualityEmptyStringAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Class TestClass
-    Private Sub TestMethod()
-        Dim testChar As Char = Nothing
-        Dim testResult = testChar = """"
-        Dim testResult2 = """" = testChar
-        Dim testResult3 = testChar <> """"
-    End Sub
-End Class", @"
-internal partial class TestClass
-{
-    private void TestMethod()
-    {
-        char testChar = default;
-        bool testResult = testChar == char.MinValue;
-        bool testResult2 = testChar == char.MinValue;
-        bool testResult3 = testChar != char.MinValue;
-    }
-}");
-    }
-
-    [Fact]
-    public async Task CharEqualityInConditionAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Class TestClass
-    Private Function IsEmpty(c As Char) As Boolean
-        If c = """" Then
-            Return True
-        End If
-        Return False
-    End Function
-End Class", @"
-internal partial class TestClass
-{
-    private bool IsEmpty(char c)
-    {
-        if (c == char.MinValue)
-        {
-            return true;
-        }
-        return false;
     }
 }");
     }

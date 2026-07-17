@@ -23,12 +23,12 @@ internal static class IMethodSymbolExtensions
             return false;
         }
 
-        if (!method.ReturnType.InheritsFromOrEquals(invoke.ReturnType, true)) {
+        if (!method.ReturnType.InheritsFromOrEquals(invoke.ReturnType)) {
             return false;
         }
 
         for (var i = 0; i < method.Parameters.Length; i++) {
-            if (!invoke.Parameters[i].Type.InheritsFromOrEquals(method.Parameters[i].Type, true)) {
+            if (!invoke.Parameters[i].Type.InheritsFromOrEquals(method.Parameters[i].Type)) {
                 return false;
             }
         }

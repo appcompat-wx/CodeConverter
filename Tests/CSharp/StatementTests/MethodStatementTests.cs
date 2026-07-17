@@ -1,4 +1,4 @@
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using ICSharpCode.CodeConverter.Tests.TestRunners;
 using Xunit;
 
@@ -291,7 +291,7 @@ internal partial class TestClass
     private void TestMethod()
     {
         string b;
-        b = new string(""test"");
+        b = new string(""test"".ToCharArray());
     }
 }");
     }
@@ -325,7 +325,7 @@ internal partial class TestClass
 {
     private void TestMethod()
     {
-        string b = new string(""test"");
+        string b = new string(""test"".ToCharArray());
     }
 }");
     }
@@ -342,7 +342,7 @@ internal partial class TestClass
 {
     private void TestMethod()
     {
-        string b = new string(""test"");
+        string b = new string(""test"".ToCharArray());
     }
 }");
     }
@@ -608,7 +608,7 @@ public partial class TestWithForEachClass
         {
             y._x = 1;
             Console.Write(y._x);
-            y = null;
+            y = (TestWithForEachClass)null;
         }
     }
 }
@@ -1089,13 +1089,13 @@ public partial class TestClass
         {
             case var @case when 0 <= @case && @case <= 3:
             case 4:
-            case >= 5:
-            case < 6:
-            case <= 7:
+            case var case1 when case1 >= 5:
+            case var case2 when case2 < 6:
+            case var case3 when case3 <= 7:
                 {
                     return ""this week"";
                 }
-            case > 0:
+            case var case4 when case4 > 0:
                 {
                     return daysAgo / 7 + "" weeks ago"";
                 }
@@ -1105,49 +1105,6 @@ public partial class TestClass
                     return ""in the future"";
                 }
         }
-    }
-}
-1 target compilation errors:
-CS0825: The contextual keyword 'var' may only appear within a local variable declaration or in script code");
-    }
-
-    [Fact]
-    public async Task SelectCaseWithEnumRangeAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Public Class TestClass
-    Enum UserLevel
-        City_Staff
-        Admin
-        Fixity_ROOT
-    End Enum
-
-    Shared Function IsPrivileged(level As UserLevel) As Boolean
-        Select Case level
-            Case UserLevel.City_Staff To UserLevel.Fixity_ROOT
-                Return True
-        End Select
-        Return False
-    End Function
-End Class", @"
-public partial class TestClass
-{
-    public enum UserLevel
-    {
-        City_Staff,
-        Admin,
-        Fixity_ROOT
-    }
-
-    public static bool IsPrivileged(UserLevel level)
-    {
-        switch (level)
-        {
-            case var @case when (int)UserLevel.City_Staff <= (int)@case && (int)@case <= (int)UserLevel.Fixity_ROOT:
-                {
-                    return true;
-                }
-        }
-        return false;
     }
 }
 1 target compilation errors:
@@ -1292,7 +1249,7 @@ public partial class TestClass2
         var rand = new Random();
         switch (rand.Next(8))
         {
-            case < 4:
+            case var @case when @case < 4:
                 {
                     break;
                 }
@@ -1300,7 +1257,7 @@ public partial class TestClass2
                 {
                     break;
                 }
-            case > 4:
+            case var case1 when case1 > 4:
                 {
                     break;
                 }
@@ -1311,46 +1268,9 @@ public partial class TestClass2
                 }
         }
     }
-}");
-    }
-
-    [Fact]
-    public async Task Issue803SelectCaseIsRelationalUsesC9PatternAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Public Class TestClass
-    Function Rollo(Breite As Integer) As Integer
-        Select Case Breite
-            Case Is < 1000
-                Return 12
-            Case Is < 1200
-                Return 15
-            Case Else
-                Return 28
-        End Select
-    End Function
-End Class", @"
-public partial class TestClass
-{
-    public int Rollo(int Breite)
-    {
-        switch (Breite)
-        {
-            case < 1000:
-                {
-                    return 12;
-                }
-            case < 1200:
-                {
-                    return 15;
-                }
-
-            default:
-                {
-                    return 28;
-                }
-        }
-    }
-}");
+}
+1 target compilation errors:
+CS0825: The contextual keyword 'var' may only appear within a local variable declaration or in script code");
     }
 
     [Fact]
@@ -1661,10 +1581,7 @@ internal partial class TestClass
     private int FuncReturningAssignedValue()
     {
         int FuncReturningAssignedValueRet = default;
-        void aSub(object y)
-        {
-            return;
-        };
+        void aSub(object y) { return; };
         FuncReturningAssignedValueRet = 3;
         return FuncReturningAssignedValueRet;
     }
@@ -1753,121 +1670,6 @@ internal partial class SurroundingClass
         }
 
         return FuncRet;
-    }
-}");
-    }
-
-    [Fact]
-    public async Task WithBlockWithNullConditionalAccessAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"
-Public Class Class1
-    Public Property x As Class1
-    Public Property Name As String
-End Class
-
-Public Class TestClass
-    Private _Data As Class1
-    Private x As String
-
-    Public Sub TestMethod()
-        With _Data
-            x = .x?.Name
-        End With
-    End Sub
-End Class", @"
-public partial class Class1
-{
-    public Class1 x { get; set; }
-    public string Name { get; set; }
-}
-
-public partial class TestClass
-{
-    private Class1 _Data;
-    private string x;
-
-    public void TestMethod()
-    {
-        {
-            ref var withBlock = ref _Data;
-            x = withBlock.x?.Name;
-        }
-    }
-}");
-    }
-
-
-    [Fact]
-    public async Task AssignmentOperatorsParameterizedPropertiesAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Public Class TestClass
-    Private _items As Integer() = New Integer() {1}
-    Public Property Item(index As Integer) As Integer
-        Get
-            Return _items(index)
-        End Get
-        Set(value As Integer)
-            _items(index) = value
-        End Set
-    End Property
-
-    Private _strItems As String() = New String() {""Hello""}
-    Public Property StrItem(index As Integer) As String
-        Get
-            Return _strItems(index)
-        End Get
-        Set(value As String)
-            _strItems(index) = value
-        End Set
-    End Property
-
-    Public Sub AllAssignmentOperators()
-        Item(0) += 2
-        Item(0) *= 2
-        Item(0) ^= 2
-        Item(0) /= 2
-        Item(0) -= 2
-        Item(0) \= 2
-        Item(0) <<= 2
-        Item(0) >>= 2
-        StrItem(0) &= "" World""
-    End Sub
-End Class", @"using System;
-
-public partial class TestClass
-{
-    private int[] _items = new int[] { 1 };
-    public int get_Item(int index)
-    {
-        return _items[index];
-    }
-    public void set_Item(int index, int value)
-    {
-        _items[index] = value;
-    }
-
-    private string[] _strItems = new string[] { ""Hello"" };
-    public string get_StrItem(int index)
-    {
-        return _strItems[index];
-    }
-    public void set_StrItem(int index, string value)
-    {
-        _strItems[index] = value;
-    }
-
-    public void AllAssignmentOperators()
-    {
-        set_Item(0, get_Item(0) + 2);
-        set_Item(0, get_Item(0) * 2);
-        set_Item(0, (int)Math.Round(Math.Pow(get_Item(0), 2d)));
-        set_Item(0, (int)Math.Round(get_Item(0) / 2d));
-        set_Item(0, get_Item(0) - 2);
-        set_Item(0, get_Item(0) / 2);
-        set_Item(0, get_Item(0) << 2);
-        set_Item(0, get_Item(0) >> 2);
-        set_StrItem(0, get_StrItem(0) + "" World"");
     }
 }");
     }

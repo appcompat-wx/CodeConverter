@@ -69,62 +69,6 @@ BC30124: Property without a 'ReadOnly' or 'WriteOnly' specifier must provide bot
     }
 
     [Fact]
-    public async Task TestWriteOnlyPropertyExitAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(
-            @"Class TestClass
-    Private m_value As Integer
-
-    Public WriteOnly Property Value As Integer
-        Set(ByVal value As Integer)
-            If value = 0 Then Exit Property
-            m_value = value
-        End Set
-    End Property
-End Class", @"
-internal partial class TestClass
-{
-    private int m_value;
-
-    public int Value
-    {
-        set
-        {
-            if (value == 0)
-                return;
-            m_value = value;
-        }
-    }
-}");
-    }
-
-    [Fact]
-    public async Task TestExitPropertyInTaskReturningGetterAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(
-            @"Imports System.Threading.Tasks
-
-Class TestClass
-    Public ReadOnly Property Value As Task(Of Integer)
-        Get
-            Exit Property
-        End Get
-    End Property
-End Class", @"using System.Threading.Tasks;
-
-internal partial class TestClass
-{
-    public Task<int> Value
-    {
-        get
-        {
-            return default;
-        }
-    }
-}");
-    }
-
-    [Fact]
     public async Task TestParameterizedPropertyAsync()
     {
         await TestConversionVisualBasicToCSharpAsync(
@@ -872,51 +816,6 @@ public partial class VisualBasicClass
             yield return new object[3];
         }
     }
-}");
-    }
-
-    /// <summary>Issue #827: VB auto-property backing field access (_Prop) should map to MyClassProp for overridable properties</summary>
-    [Fact]
-    public async Task TestOverridableAutoPropertyBackingFieldAccessAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"Class Foo
-    Overridable Property Prop As Integer = 5
-
-    Sub Test()
-        _Prop = 10
-        Dim isCorrect = MyClass.Prop = 10
-    End Sub
-End Class
-Class Child
-    Inherits Foo
-    Overrides Property Prop As Integer = 20
-End Class", @"
-internal partial class Foo
-{
-    public int MyClassProp { get; set; } = 5;
-
-    public virtual int Prop
-    {
-        get
-        {
-            return MyClassProp;
-        }
-
-        set
-        {
-            MyClassProp = value;
-        }
-    }
-
-    public void Test()
-    {
-        MyClassProp = 10;
-        bool isCorrect = MyClassProp == 10;
-    }
-}
-internal partial class Child : Foo
-{
-    public override int Prop { get; set; } = 20;
 }");
     }
 }

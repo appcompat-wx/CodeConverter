@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
-using Basic.Reference.Assemblies;
 using Microsoft.CodeAnalysis;
-using static Basic.Reference.Assemblies.AspNet100;
 
 namespace ICSharpCode.CodeConverter.Common;
 
@@ -17,14 +14,12 @@ namespace ICSharpCode.CodeConverter.Common;
 public static class DefaultReferences
 {
     private static readonly Assembly[] DefaultAssemblies = new []{
-        // ReSharper disable RedundantNameQualifier
-        typeof(System.Object),
-        typeof(System.Collections.IEnumerable),
-        typeof(System.Collections.Generic.IEnumerable<>),
-        typeof(System.IO.ErrorEventArgs),
+        typeof(object),
+        typeof(IEnumerable),
+        typeof(IEnumerable<>),
+        typeof(ErrorEventArgs),
         typeof(System.Text.Encoding),
-        typeof(System.Linq.Enumerable),
-        typeof(System.Console),
+        typeof(Enumerable),
         typeof(System.ComponentModel.BrowsableAttribute),
         typeof(System.Dynamic.DynamicObject),
         typeof(System.Data.DataRow),
@@ -35,8 +30,7 @@ public static class DefaultReferences
         typeof(System.Xml.Linq.XElement),
         typeof(System.Linq.Expressions.Expression),
         typeof(Microsoft.VisualBasic.Constants),
-        typeof(System.Threading.Tasks.ParallelOptions)
-        // ReSharper restore RedundantNameQualifier
+        typeof(System.Data.SqlClient.SqlCommand)
     }.Select(t => t.Assembly).Concat(
         new[] { Assembly.Load("System.Runtime, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a") }
     ).ToArray();
@@ -44,7 +38,10 @@ public static class DefaultReferences
     private static readonly Dictionary<string, (string Location, string[] ReferenceNames)> _assemblyInfoCache = new();
 
     public static IReadOnlyCollection<PortableExecutableReference> NetStandard2 { get; } =
-        AspNet100.References.All;
+        With(Array.Empty<Assembly>()).ToArray();
+
+    public static IReadOnlyCollection<PortableExecutableReference> With(params Assembly[] assemblies) =>
+        GetRefs(GetPathsForAllReferences(DefaultAssemblies.Concat(assemblies))).ToArray();
 
     private static IEnumerable<PortableExecutableReference> GetRefs(IEnumerable<string> assemblyLocations) =>
         assemblyLocations.Select(a => MetadataReference.CreateFromFile(a));

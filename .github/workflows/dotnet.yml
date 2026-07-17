@@ -2,15 +2,15 @@ name: Build CodeConverter
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ master ]
 
 env:
-  BuildVersion: '10.0.1'
+  BuildVersion: '9.2.6'
   
 jobs:
-  build:
+ build:
     runs-on: windows-2022
     env:
       BuildPlatform: Any CPU
@@ -30,7 +30,7 @@ jobs:
     - name: Setup .NET for main build
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 10.0.x
+        dotnet-version: 6.0.x
 
     - name: Add msbuild to PATH
       uses: microsoft/setup-msbuild@v2
@@ -46,9 +46,10 @@ jobs:
     - name: MSBuild Vsix
       run: msbuild Vsix\Vsix.csproj -restore /p:Configuration=$env:BuildTarget
 
-    - name: Run vitest
-      working-directory: Web
-      run: npm test -- --run
+    - name: Execute unit tests
+      run: dotnet test $env:Tests1
+      env:
+        Tests1: Tests/bin/${{ env.BuildTarget }}/ICSharpCode.CodeConverter.Tests.dll
 
     - name: Upload NuGet package
       uses: actions/upload-artifact@v4
@@ -64,28 +65,36 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ICSharpCode.CodeConverter.CodeConv.${{ env.BuildVersion }}.nupkg
-        path: CodeConv/bin/${{ env.BuildTarget }}/ICSharpCode.CodeConverter.CodeConv.*.nupkg
+        path: CommandLine/CodeConv/bin/${{ env.BuildTarget }}/ICSharpCode.CodeConverter.CodeConv.*.nupkg
     - name: Upload Web
       uses: actions/upload-artifact@v4
       with:
         name: ICSharpCode.CodeConverter.Web.${{ env.BuildVersion }}.zip
-        path: Web/dist/
+        path: Web/bin/${{ env.BuildTarget }}/publish/
     - name: Upload Function
       uses: actions/upload-artifact@v4
       with:
         name: ICSharpCode.CodeConverter.Func.${{ env.BuildVersion }}.zip
         path: Func/bin/${{ env.BuildTarget }}/publish/
-
-  test-vs2022:
-    uses: ./.github/workflows/dotnet-tests.yml
-    with:
-      runs-on: windows-2022
-      vs-version: '[17.0,18.0)'
-      dotnet-version: 8.0.x
-
-  test-vs2026:
-    uses: ./.github/workflows/dotnet-tests.yml
-    with:
-      runs-on: windows-2025-vs2026
-      vs-version: '[18.0,)'
-      dotnet-version: 10.0.x
+        
+ deploy:
+     if: ${{ github.ref == 'refs/heads/master' }}
+     concurrency: ci-${{ github.ref }}
+     needs: [build] # The second job must depend on the first one to complete before running and uses ubuntu-latest instead of windows.
+     runs-on: ubuntu-latest
+     steps:
+       - name: Checkout 🛎️
+         uses: actions/checkout@v4
+ 
+       - name: Download Artifacts 🔻 # The built project is downloaded into the 'site' folder.
+         uses: actions/download-artifact@v4
+         with:
+           name: ICSharpCode.CodeConverter.Web.${{ env.BuildVersion }}.zip
+           path: site
+ 
+       - name: Deploy 🚀
+         uses: JamesIves/github-pages-deploy-action@v4
+         with:
+           branch: 'autoupdated/gh-pages'
+           folder: 'site/wwwroot'
+          

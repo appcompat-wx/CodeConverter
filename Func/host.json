@@ -8,16 +8,5 @@
             },
             "enableLiveMetricsFilters": true
         }
-    },
-    "extensions": {
-        "http": {
-            "routePrefix": "api"
-        }
-    },
-    "cors": {
-        "allowedOrigins": [
-            "http://localhost:5173"
-        ],
-        "supportCredentials": false
     }
 }

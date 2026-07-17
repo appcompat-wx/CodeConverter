@@ -14,53 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### C# -> VB
 
 
-## [10.0.1] - 2026-02-28
-
-* Reintroduce tentative legacy support for dotnet 8 and VS2022
-* Support slnx format [1195](https://github.com/icsharpcode/CodeConverter/issues/1195)
-
-### VB -> C#
-* Fix for ReDim Preserve of array property - [#1156](https://github.com/icsharpcode/CodeConverter/issues/1156)
-* Fix for with block conversion with null conditional [#1174](https://github.com/icsharpcode/CodeConverter/issues/1174)
-Fixes #1195
-
-
-## [10.0.0] - 2026-02-06
-
-* Support for net framework dropped. Please use an older version if you are converting projects that still use it.
-* dotnet 10 required to run codeconv command line tool
-* Improvements to codeconv tool to support converting newer dotnet versions
-
-### Vsix
-
-
-### VB -> C#
-
-* Xor operator overloads now converted [#1182](https://github.com/icsharpcode/CodeConverter/issues/1182)
-
-### C# -> VB
-
-
-## [9.2.7] - 2025-02-15
-
-This is the last version that supports net framework.
-
-### Vsix
-
-
-### VB -> C#
-
-* Improved literal suffix handling [#1161](https://github.com/icsharpcode/CodeConverter/issues/1161)
-* Nullable value casting fixes [#1160](https://github.com/icsharpcode/CodeConverter/issues/1160)
-* AddressOf now wraps compatible signatures in lambdas [#1153](https://github.com/icsharpcode/CodeConverter/issues/1153)
-* Fixed case-sensitive namespace/type handling [#1155](https://github.com/icsharpcode/CodeConverter/issues/1155)
-* Improved conversion of large uint/ulong/long hex literals [#1147](https://github.com/icsharpcode/CodeConverter/issues/1147)
-* Convert `Select Case [object]` using `Operators.ConditionalCompareObject...` [#1128](https://github.com/icsharpcode/CodeConverter/issues/1128)
-* Small performance improvement
-
-### C# -> VB
-
-
 ## [9.2.6] - 2024-07-08
 
 
@@ -70,7 +23,6 @@ This is the last version that supports net framework.
 
 ### VB -> C#
 
-* Escape character -> string conversions [#1135](https://github.com/icsharpcode/CodeConverter/issues/1135)
 * Convert Not(x IsNot Nothing) to x is null [#1113](https://github.com/icsharpcode/CodeConverter/issues/1113)
 * Escape parameter names [#1092](https://github.com/icsharpcode/CodeConverter/issues/1092)
 

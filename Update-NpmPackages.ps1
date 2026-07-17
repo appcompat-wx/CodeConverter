@@ -1,7 +1,7 @@
 $null = & npm install -g npm-check-updates@latest
-Push-Location './Web'
+Push-Location './Web/ClientApp'
 try {
-    & npm-check-updates -u
+    & ncu -u
     & npm install --audit false
     & npm audit --production
 } finally {

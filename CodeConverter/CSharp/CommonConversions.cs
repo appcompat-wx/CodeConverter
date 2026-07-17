@@ -1,5 +1,4 @@
-﻿using System.Collections.Immutable;
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using ICSharpCode.CodeConverter.Util.FromRoslyn;
 using Microsoft.CodeAnalysis.Classification;
@@ -7,8 +6,6 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Operations;
-using Microsoft.CodeAnalysis.Simplification;
-using static Microsoft.CodeAnalysis.VisualBasic.VisualBasicExtensions;
 using ArgumentListSyntax = Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax;
 using ArrayRankSpecifierSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.ArrayRankSpecifierSyntax;
 using ArrayTypeSyntax = Microsoft.CodeAnalysis.CSharp.Syntax.ArrayTypeSyntax;
@@ -232,9 +229,7 @@ internal class CommonConversions
 
         return syntax.ReplaceNodes(syntax.DescendantNodes().OfType<CSSyntax.IdentifierNameSyntax>(), (oldNode, _) =>
         {
-            string oldNodeStr = oldNode.ToString();
-            var originalName = originalNames.FirstOrDefault(on => string.Equals(on, oldNodeStr, StringComparison.Ordinal)) ??
-                               originalNames.FirstOrDefault(on => string.Equals(on, oldNodeStr, StringComparison.OrdinalIgnoreCase));
+            var originalName = originalNames.FirstOrDefault(on => string.Equals(on, oldNode.ToString(), StringComparison.OrdinalIgnoreCase));
             return originalName != null ? ValidSyntaxFactory.IdentifierName(originalName) : oldNode;
         });
     }
@@ -293,12 +288,7 @@ internal class CommonConversions
                     // AND the first explicitly declared parameter is this symbol, we need to replace it with value.
                     text = "value";
                 } else if (normalizedText.StartsWith("_", StringComparison.OrdinalIgnoreCase) && idSymbol is IFieldSymbol propertyFieldSymbol && propertyFieldSymbol.AssociatedSymbol?.IsKind(SymbolKind.Property) == true) {
-                    // For virtual auto-properties, VB backing field _Prop maps to the C# MyClassProp backing property (bypasses virtual dispatch).
-                    // Exception: when accessed as MyClass._Prop, NameExpressionNodeVisitor adds the "MyClass" prefix itself, so we just return the property name.
-                    var isAccessedViaMyClass = id.Parent?.Parent is VBSyntax.MemberAccessExpressionSyntax { Expression: VBSyntax.MyClassExpressionSyntax };
-                    text = !isAccessedViaMyClass && propertyFieldSymbol.IsImplicitlyDeclared && propertyFieldSymbol.AssociatedSymbol is IPropertySymbol { IsVirtual: true, IsAbstract: false } vProp
-                        ? "MyClass" + vProp.Name
-                        : propertyFieldSymbol.AssociatedSymbol.Name;
+                    text = propertyFieldSymbol.AssociatedSymbol.Name;
                 } else if (normalizedText.EndsWith("Event", StringComparison.OrdinalIgnoreCase) && idSymbol is IFieldSymbol eventFieldSymbol && eventFieldSymbol.AssociatedSymbol?.IsKind(SymbolKind.Event) == true) {
                     text = eventFieldSymbol.AssociatedSymbol.Name;
                 } else if (WinformsConversions.MayNeedToInlinePropertyAccess(id.Parent, idSymbol) && _typeContext.HandledEventsAnalysis.ShouldGeneratePropertyFor(idSymbol.Name)) {
@@ -530,10 +520,6 @@ internal class CommonConversions
             && convertedExpression.SkipIntoParens() is CSSyntax.BinaryExpressionSyntax bExp && bExp.IsKind(CSSyntaxKind.SubtractExpression))
             return bExp.Left;
 
-        if (convertedExpression is CSSyntax.ConditionalExpressionSyntax ce) {
-            convertedExpression = SyntaxFactory.ParenthesizedExpression(convertedExpression);
-        }
-
         return SyntaxFactory.BinaryExpression(
             CSSyntaxKind.SubtractExpression,
             convertedExpression, SyntaxFactory.Token(CSSyntaxKind.PlusToken), SyntaxFactory.LiteralExpression(CSSyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(1)));
@@ -584,7 +570,7 @@ internal class CommonConversions
     {
         if (operation is IPropertyReferenceOperation pro && pro.Arguments.Any() &&
             !VisualBasicExtensions.IsDefault(pro.Property)) {
-            var isSetter = pro.Parent.Kind == OperationKind.SimpleAssignment && pro.Parent.ChildOperations.First() == pro;
+            var isSetter = pro.Parent.Kind == OperationKind.SimpleAssignment && pro.Parent.Children.First() == pro;
             var extraArg = isSetter
                 ? await GetParameterizedSetterArgAsync(operation)
                 : null;
@@ -604,12 +590,7 @@ internal class CommonConversions
     public CSSyntax.IdentifierNameSyntax GetRetVariableNameOrNull(VBSyntax.MethodBlockBaseSyntax node)
     {
         if (!node.MustReturn()) return null;
-        var methodSymbol = node switch {
-            VBSyntax.MethodBlockSyntax mb => SemanticModel.GetDeclaredSymbol(mb.SubOrFunctionStatement),
-            VBSyntax.AccessorBlockSyntax ab => SemanticModel.GetDeclaredSymbol(ab.AccessorStatement),
-            _ => SemanticModel.GetDeclaredSymbol(node)
-        } as IMethodSymbol;
-        if (methodSymbol?.ReturnsVoidOrAsyncTask() == true) {
+        if (SemanticModel.GetDeclaredSymbol(node) is IMethodSymbol ms && ms.ReturnsVoidOrAsyncTask()) {
             return null;
         }
             
@@ -669,28 +650,11 @@ internal class CommonConversions
 
     public bool IsExtensionAttribute(VBSyntax.AttributeSyntax a)
     {
-        if (a.SyntaxTree != SemanticModel.SyntaxTree)
-            return AttributeNameMatches(a, "Extension");
         return (SemanticModel.GetTypeInfo(a).ConvertedType?.GetFullMetadataName())
             ?.Equals(ExtensionAttributeType.FullName, StringComparison.Ordinal) == true;
     }
 
-    public bool IsOutAttribute(VBSyntax.AttributeSyntax a)
-    {
-        if (a.SyntaxTree != SemanticModel.SyntaxTree)
-            return AttributeNameMatches(a, "Out");
-        return SemanticModel.GetTypeInfo(a).ConvertedType.IsOutAttribute();
-    }
-
-    // SemanticModel.GetTypeInfo throws when the node is not in its syntax tree; fall back to name matching.
-    private static bool AttributeNameMatches(VBSyntax.AttributeSyntax a, string shortName)
-    {
-        var name = a.Name.ToString();
-        return name.Equals(shortName, StringComparison.Ordinal) ||
-               name.Equals(shortName + "Attribute", StringComparison.Ordinal) ||
-               name.EndsWith("." + shortName, StringComparison.Ordinal) ||
-               name.EndsWith("." + shortName + "Attribute", StringComparison.Ordinal);
-    }
+    public bool IsOutAttribute(VBSyntax.AttributeSyntax a) => SemanticModel.GetTypeInfo(a).ConvertedType.IsOutAttribute();
 
     public ISymbol GetCsOriginalSymbolOrNull(ISymbol symbol)
     {
@@ -698,7 +662,6 @@ internal class CommonConversions
         symbol = symbol.OriginalDefinition;
         // Construct throws an exception if ConstructedFrom differs from it, so let's use ConstructedFrom directly
         var symbolToFind = symbol is IMethodSymbol m ? m.ConstructedFrom : symbol;
-        // This no longer works for private members: https://github.com/dotnet/roslyn/issues/72369#issuecomment-1975066163
         var similarSymbol = SymbolFinder.FindSimilarSymbols(symbolToFind, _csCompilation).FirstOrDefault();
         return similarSymbol;
     }
@@ -714,7 +677,7 @@ internal class CommonConversions
 
     public static CSSyntax.ParameterListSyntax CreateParameterList(IEnumerable<SyntaxNode> ps)
     {
-        return SyntaxFactory.ParameterList(SyntaxFactory.SeparatedList(ps.Cast<CSSyntax.ParameterSyntax>()));
+        return SyntaxFactory.ParameterList(SyntaxFactory.SeparatedList(ps));
     }
 
     public static ExpressionSyntax NotNothingComparison(ExpressionSyntax otherArgument, bool isReferenceType, bool inExpressionLambda = false)
@@ -777,9 +740,6 @@ internal class CommonConversions
             return csParam.RefKind;
         }
 
-        var syntaxNodes = vbParameter?.DeclaringSyntaxReferences.Select(r => r.GetSyntax());
-        optionalParameterSyntax ??= syntaxNodes?.OfType<VBSyntax.ParameterSyntax>().FirstOrDefault();
-
         if (optionalParameterSyntax?.AttributeLists.Any(this.HasOutAttribute) == true) {
             return RefKind.Out;
         }
@@ -798,54 +758,4 @@ internal class CommonConversions
     }
 
     private bool IsLinqDelegateExpression(ITypeSymbol convertedType) =>KnownTypes.System_Linq_Expressions_Expression_T?.Equals(convertedType?.OriginalDefinition, SymbolEqualityComparer.Default) == true;
-
-    public static SyntaxToken GetRefToken(RefKind refKind)
-    {
-        SyntaxToken token;
-        switch (refKind) {
-            case RefKind.None:
-                token = default(SyntaxToken);
-                break;
-            case RefKind.Ref:
-                token = SyntaxFactory.Token(CSSyntaxKind.RefKeyword);
-                break;
-            case RefKind.Out:
-                token = SyntaxFactory.Token(CSSyntaxKind.OutKeyword);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(refKind), refKind, null);
-        }
-
-        return token;
-    }
-
-    public async Task<CSharpSyntaxNode> WithRemovedRedundantConversionOrNullAsync(VBSyntax.ExpressionSyntax conversionNode, VBSyntax.ExpressionSyntax conversionArg)
-    {
-        var csharpArg = await conversionArg.AcceptAsync<ExpressionSyntax>(TriviaConvertingExpressionVisitor);
-        var typeInfo = SemanticModel.GetTypeInfo(conversionNode);
-
-        // If written by the user (i.e. not generated during expand phase), maintain intended semantics which could throw sometimes e.g. object o = (int) (object) long.MaxValue;
-        var writtenByUser = !conversionNode.HasAnnotation(Simplifier.Annotation);
-        var forceTargetType = typeInfo.ConvertedType;
-        // TypeConversionAnalyzer can't figure out which type is required for operator/method overloads, inferred func returns or inferred variable declarations
-        //      (currently overapproximates for numeric and gets it wrong in non-numeric cases).
-        // Future: Avoid more redundant conversions by still calling AddExplicitConversion when writtenByUser avoiding the above and forcing typeInfo.Type
-        return writtenByUser ? null : this.TypeConversionAnalyzer.AddExplicitConversion(conversionArg, csharpArg,
-            forceTargetType: forceTargetType, defaultToCast: true);
-    }
-
-    public SemanticModelExtensions.RefConversion GetRefConversionType(VBSyntax.ArgumentSyntax node, VBSyntax.ArgumentListSyntax argList, ImmutableArray<IParameterSymbol> parameters, out string argName, out RefKind refKind)
-    {
-        var parameter = node.IsNamed && node is VBSyntax.SimpleArgumentSyntax sas
-            ? parameters.FirstOrDefault(p => p.Name.Equals(sas.NameColonEquals.Name.Identifier.Text, StringComparison.OrdinalIgnoreCase))
-            : parameters.ElementAtOrDefault(argList.Arguments.IndexOf(node));
-        if (parameter != null) {
-            refKind = GetCsRefKind(parameter);
-            argName = parameter.Name;
-        } else {
-            refKind = RefKind.None;
-            argName = null;
-        }
-        return SemanticModel.NeedsVariableForArgument(node, refKind);
-    }
 }

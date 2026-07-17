@@ -319,7 +319,7 @@ public partial class VisualBasicClass
     }
 }
 1 target compilation errors:
-CS1503: Argument 1: cannot convert from 'object' to 'decimal'");
+CS1503: Argument 1: cannot convert from 'object' to 'double'");
     }
 
     [Fact]
@@ -572,13 +572,11 @@ public partial class VisualBasicClass
 
     public VisualBasicClass()
     {
-        SomeDateDateNothing = string.IsNullOrEmpty(Conversions.ToString(SomeDate)) ? (object)null : DateTime.Parse(SomeDate);
+        SomeDateDateNothing = string.IsNullOrEmpty(Conversions.ToString(SomeDate)) ? default : DateTime.Parse(Conversions.ToString(SomeDate));
         isNotNothing = SomeDateDateNothing is not null;
         isSomething = new DateTime() is var arg1 && SomeDateDateNothing.HasValue ? SomeDateDateNothing.Value == arg1 : (bool?)null;
     }
-}
-1 target compilation errors:
-CS1503: Argument 1: cannot convert from 'object' to 'System.ReadOnlySpan<char>'");
+}");
     }
 
     [Fact]
@@ -1440,76 +1438,6 @@ internal partial class TestClass
         test(3);
     }
 }");
-    }
-
-    [Fact]
-    public async Task Issue1148_AddressOfSignatureCompatibilityAsync()
-    {
-        await TestConversionVisualBasicToCSharpAsync(@"
-Imports System
-
-Public Class Issue1148
-    Public Shared FuncClass As Func(Of TestObjClass) = AddressOf FunctionReturningClass
-    Public Shared FuncBaseClass As Func(Of TestBaseObjClass) = AddressOf FunctionReturningClass
-    Public Shared FuncInterface As Func(Of ITestObj) = AddressOf FunctionReturningClass
-    Public Shared FuncInterfaceParam As Func(Of ITestObj, ITestObj) = AddressOf CastObj
-    Public Shared FuncClassParam As Func(Of TestObjClass, ITestObj) = AddressOf CastObj
-
-    Public Shared Function FunctionReturningClass() As TestObjClass
-        Return New TestObjClass()
-    End Function
-
-    Public Shared Function CastObj(obj As ITestObj) As TestObjClass
-        Return CType(obj, TestObjClass)
-    End Function
-
-End Class
-
-Public Class TestObjClass
-    Inherits TestBaseObjClass
-    Implements ITestObj
-End Class
-
-Public Class TestBaseObjClass
-End Class
-
-Public Interface ITestObj
-End Interface
-", @"
-using System;
-
-public partial class Issue1148
-{
-    public static Func<TestObjClass> FuncClass = FunctionReturningClass;
-    public static Func<TestBaseObjClass> FuncBaseClass = FunctionReturningClass;
-    public static Func<ITestObj> FuncInterface = FunctionReturningClass;
-    public static Func<ITestObj, ITestObj> FuncInterfaceParam = CastObj;
-    public static Func<TestObjClass, ITestObj> FuncClassParam = CastObj;
-
-    public static TestObjClass FunctionReturningClass()
-    {
-        return new TestObjClass();
-    }
-
-    public static TestObjClass CastObj(ITestObj obj)
-    {
-        return (TestObjClass)obj;
-    }
-
-}
-
-public partial class TestObjClass : TestBaseObjClass, ITestObj
-{
-}
-
-public partial class TestBaseObjClass
-{
-}
-
-public partial interface ITestObj
-{
-}
-");
     }
 
     [Fact]
@@ -2930,51 +2858,5 @@ public partial class CrashTest
         return null;
     }
 }");
-    }
-    [Fact]
-    public async Task LambdaBodyExpressionWithCommentsAsync() {
-        await TestConversionVisualBasicToCSharpAsync(@"
-Imports System.Threading.Tasks
-Imports System.Collections.Generic
-
-Public Class ConversionTest1
-    Public Sub BugRepro()
-        Dim dt As New List(Of Integer)
-
-        Parallel.ForEach(dt, Sub(row)
-                                 If Not String.IsNullOrWhiteSpace("""") Then
-                                     'comment1
-                                     Dim test1 As Boolean = True
-                                     'comment2
-                                     Dim test2 As Boolean = True
-                                     'comment3
-                                     Dim test3 As Boolean = True
-                                 End If
-                             End Sub)
-    End Sub
-End Class
-", @"using System.Collections.Generic;
-using System.Threading.Tasks;
-
-public partial class ConversionTest1
-{
-    public void BugRepro()
-    {
-        var dt = new List<int>();
-
-        Parallel.ForEach(dt, row =>
-        {
-            if (!string.IsNullOrWhiteSpace(""""))
-            {
-                // comment1
-                bool test1 = true;
-                // comment2
-                bool test2 = true;
-                // comment3
-                bool test3 = true;
-            }
-        });
-    }
-}", incompatibleWithAutomatedCommentTesting: true);
     }
 }
